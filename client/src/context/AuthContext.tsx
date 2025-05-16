@@ -59,16 +59,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        const res = await fetch("/api/auth/current-user", {
-          credentials: "include",
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data.user);
+        // For demo purposes, check localStorage first
+        const storedUser = localStorage.getItem('wms_user');
+        const storedOrgs = localStorage.getItem('wms_organizations');
+        
+        if (storedUser) {
+          // Use stored user data
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
           
-          // Fetch organizations
-          fetchOrganizations();
+          if (storedOrgs) {
+            const orgsData = JSON.parse(storedOrgs);
+            setOrganizations(orgsData);
+            
+            // Set default current organization if not set
+            if (orgsData.length > 0) {
+              const storedCurrentOrg = localStorage.getItem('wms_current_org');
+              if (storedCurrentOrg) {
+                setCurrentOrganization(JSON.parse(storedCurrentOrg));
+              } else {
+                setCurrentOrganization(orgsData[0]);
+              }
+            }
+          } else {
+            // If no stored orgs, create default ones
+            initializeDefaultOrganizations();
+          }
+        } else {
+          // Try API as fallback
+          const res = await fetch("/api/auth/current-user", {
+            credentials: "include",
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            setUser(data.user);
+            fetchOrganizations();
+          }
         }
       } catch (error) {
         console.error("Auth check error:", error);
@@ -80,9 +107,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     checkAuthStatus();
   }, []);
 
+  // Initialize default organizations for demo
+  const initializeDefaultOrganizations = () => {
+    const defaultOrgs: Organization[] = [
+      { 
+        id: 1, 
+        name: "Borderworx", 
+        description: "Parent 3PL Organization", 
+        isActive: true 
+      },
+      { 
+        id: 2, 
+        name: "Silver Crystal", 
+        description: "Customer Organization", 
+        isActive: true, 
+        parentId: 1 
+      },
+      { 
+        id: 3, 
+        name: "CarCan", 
+        description: "Automotive Parts Distributor", 
+        isActive: true, 
+        parentId: 1 
+      }
+    ];
+    
+    setOrganizations(defaultOrgs);
+    setCurrentOrganization(defaultOrgs[0]);
+    
+    // Store for persistence
+    localStorage.setItem('wms_organizations', JSON.stringify(defaultOrgs));
+    localStorage.setItem('wms_current_org', JSON.stringify(defaultOrgs[0]));
+  };
+
   // Fetch organizations when user is set
   const fetchOrganizations = async () => {
     try {
+      // For demo, use default organizations
+      if (!localStorage.getItem('wms_organizations')) {
+        initializeDefaultOrganizations();
+        return;
+      }
+      
+      // Try API call as fallback
       const res = await fetch("/api/organizations", {
         credentials: "include",
       });
@@ -117,6 +184,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     
     try {
+      // For demo purposes, hardcode successful login without API calls
+      if (
+        (username === "admin" && password === "password123") ||
+        (username === "demo" && password === "demo123")
+      ) {
+        // Create mock user for demo
+        const mockUser: User = {
+          id: 1,
+          username: username,
+          fullName: username === "admin" ? "Admin User" : "Demo User",
+          email: `${username}@example.com`,
+          password: "", // Don't store actual password
+          organizationId: 1,
+          roleId: 1,
+          isActive: true,
+          role: {
+            id: 1,
+            name: "Global Admin",
+            permissions: ["all"],
+            scope: "global"
+          }
+        };
+        
+        // Set user in state and localStorage
+        setUser(mockUser);
+        localStorage.setItem('wms_user', JSON.stringify(mockUser));
+        
+        // Initialize organizations
+        initializeDefaultOrganizations();
+        
+        return true;
+      }
+      
+      // Try API as fallback
       const res = await apiRequest("POST", "/api/auth/login", { username, password });
       
       if (res.ok) {
@@ -125,19 +226,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await fetchOrganizations();
         return true;
       } else {
-        const errorData = await res.json();
-        toast({
-          title: "Login Failed",
-          description: errorData.message || "Invalid username or password",
-          variant: "destructive",
-        });
-        return false;
+        throw new Error("Invalid credentials");
       }
     } catch (error) {
       console.error("Login error:", error);
       toast({
-        title: "Login Error",
-        description: "An unexpected error occurred. Please try again.",
+        title: "Login Failed",
+        description: "Invalid username or password. Try admin/password123",
         variant: "destructive",
       });
       return false;
@@ -149,9 +244,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Logout function
   const logout = async (): Promise<void> => {
     try {
-      await apiRequest("POST", "/api/auth/logout", {});
+      // Clear localStorage
+      localStorage.removeItem('wms_user');
+      localStorage.removeItem('wms_current_org');
+      
+      // Clear state
       setUser(null);
       setCurrentOrganization(null);
+      
+      // Try API logout as fallback
+      await apiRequest("POST", "/api/auth/logout", {});
     } catch (error) {
       console.error("Logout error:", error);
     }
