@@ -184,18 +184,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     
     try {
-      // For demo purposes, hardcode successful login without API calls
+      // For demo purposes with hardcoded credentials
       if (
         (username === "admin" && password === "password123") ||
         (username === "demo" && password === "demo123")
       ) {
-        // Create mock user for demo
-        const mockUser: User = {
+        // Create demo user object
+        const demoUser = {
           id: 1,
           username: username,
           fullName: username === "admin" ? "Admin User" : "Demo User",
           email: `${username}@example.com`,
-          password: "", // Don't store actual password
           organizationId: 1,
           roleId: 1,
           isActive: true,
@@ -207,23 +206,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         };
         
-        // Set user in state and localStorage
-        setUser(mockUser);
-        localStorage.setItem('wms_user', JSON.stringify(mockUser));
+        // Set user in state
+        setUser(demoUser);
         
         // Initialize organizations
         initializeDefaultOrganizations();
         
-        return true;
-      }
-      
-      // Try API as fallback
-      const res = await apiRequest("POST", "/api/auth/login", { username, password });
-      
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-        await fetchOrganizations();
         return true;
       } else {
         throw new Error("Invalid credentials");

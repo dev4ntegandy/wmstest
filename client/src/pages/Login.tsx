@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -22,10 +22,17 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const Login = () => {
-  const { login } = useAuth();
-  const [_, setLocation] = useLocation();
+  const { login, user } = useAuth();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (user) {
+      setLocation("/dashboard");
+    }
+  }, [user, setLocation]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -39,50 +46,16 @@ const Login = () => {
     try {
       setIsLoggingIn(true);
       
-      // For demo purposes, hardcode successful login without API calls
-      // This bypasses the need for an actual server response
-      if (
-        (values.username === "admin" && values.password === "password123") ||
-        (values.username === "demo" && values.password === "demo123")
-      ) {
-        // Simulate successful login - creating a mock user
-        const mockUser = {
-          id: 1,
-          username: values.username,
-          fullName: "Admin User",
-          email: "admin@example.com",
-          organizationId: 1,
-          roleId: 1,
-          isActive: true,
-          role: {
-            id: 1,
-            name: "Global Admin",
-            permissions: ["all"],
-            scope: "global"
-          }
-        };
-        
-        // Set the mock user in local storage to maintain the session
-        localStorage.setItem("wms_user", JSON.stringify(mockUser));
-        
-        // Navigate to dashboard
+      // Use the AuthContext login function directly
+      const success = await login(values.username, values.password);
+      
+      if (success) {
         toast({
           title: "Login Successful",
           description: "Welcome to Borderworx WMS",
         });
         
-        // Small delay for the toast to show
-        setTimeout(() => {
-          setLocation("/dashboard");
-          window.location.reload(); // Force a reload to update auth state
-        }, 1000);
-      } else {
-        // Show error for invalid credentials
-        toast({
-          title: "Login Failed",
-          description: "Invalid username or password. Please try admin/password123.",
-          variant: "destructive",
-        });
+        setLocation("/dashboard");
       }
     } catch (error) {
       toast({
